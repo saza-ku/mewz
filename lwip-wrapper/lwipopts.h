@@ -78,4 +78,8 @@
 /* --- Misc --- */
 #define LWIP_STATS                      0 /* Don't Use statistics. */
 
+// #define TCP_DEBUG LWIP_DBG_ON
+// #define TCP_INPUT_DEBUG LWIP_DBG_ON
+// #define TCP_OUTPUT_DEBUG LWIP_DBG_ON
+
 #endif /* __LWIPOPTS_H__ */

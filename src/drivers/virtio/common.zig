@@ -454,7 +454,7 @@ pub fn VirtioMmioTransport(comptime DeviceConfigType: type) type {
 
                 const cfg_type = pci_cap.data[3];
                 const bar_index = pci_cap.data[4];
-                var offset: i32 = 0;
+                var offset: u32 = 0;
                 @memcpy(@as([*]u8, @ptrCast(&offset)), pci_cap.data[8..12]);
                 log.debug.printf("offset: {d}\n", .{offset});
                 const bar = dev.config.bar(bar_index);
@@ -475,6 +475,7 @@ pub fn VirtioMmioTransport(comptime DeviceConfigType: type) type {
                     },
                     VIRTIO_PCI_CAP_ISR_CFG => {
                         self.isr = @as(*u32, @ptrFromInt(addr));
+                        log.debug.printf("isr: {x}\n", .{@intFromPtr(self.isr)});
                     },
                     else => {},
                 }
@@ -502,6 +503,8 @@ pub fn VirtioMmioTransport(comptime DeviceConfigType: type) type {
         }
 
         pub fn notifyQueue(self: *Self, virtq: *Virtqueue) void {
+            self.common_config.queue_select = virtq.index;
+            @fence(std.builtin.AtomicOrder.Release);
             const offset = self.notify_off_multiplier * self.common_config.queue_notify_off;
             const addr = self.notify + @as(usize, @intCast(offset));
             @as(*volatile u16, @ptrFromInt(addr)).* = virtq.index;

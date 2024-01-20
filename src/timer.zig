@@ -1,6 +1,7 @@
 const std = @import("std");
 const heap = @import("heap.zig");
 const interrupt = @import("interrupt.zig");
+const log = @import("log.zig");
 const sync = @import("sync.zig");
 
 const Allocator = std.mem.Allocator;
@@ -58,6 +59,17 @@ pub fn handleIrq(frame: *interrupt.InterruptFrame) void {
         }
     }
     timers.release();
+
+    const S = struct {
+        var first: bool = true;
+    };
+
+    if (getNanoSeconds() >= 70 * 1000000000 and S.first) {
+        log.warn.print("timer: 70 seconds passed\n");
+        const wasi = @import("wasi.zig");
+        wasi.printWasmElapsedTime();
+        S.first = false;
+    }
 }
 
 pub fn init() void {

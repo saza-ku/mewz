@@ -1,5 +1,7 @@
 const std = @import("std");
 
+const log = @import("log.zig");
+
 pub const RingBuffer = struct {
     buffer: []u8,
     read_index: usize,

@@ -1,4 +1,5 @@
 const heap = @import("heap.zig");
+const log = @import("log.zig");
 const stream = @import("stream.zig");
 const timer = @import("timer.zig");
 const types = @import("wasi/types.zig");
@@ -33,7 +34,26 @@ const Subscription = struct {
                         },
                     };
                 } else {
-                    return null;
+                    switch (s.*) {
+                        Stream.socket => |*sock| {
+                            if (!sock.is_listening and !sock.is_connected) {
+                                return Event{
+                                    .userdata = self.userdata,
+                                    .err = WasiError.SUCCESS.toU16(),
+                                    .eventtype = EventType.fd_read.toInt(),
+                                    .event_fd_readwrite = EventFdReadwrite{
+                                        .nbytes = 0,
+                                        .flags = sock.flags,
+                                    },
+                                };
+                            } else {
+                                return null;
+                            }
+                        },
+                        else => {
+                            return null;
+                        },
+                    }
                 }
             },
             .fd_write => |s| {
@@ -142,6 +162,8 @@ pub fn poll(wasi_subscriptions: []WasiSubscription, events: []Event, nsubscripti
         }
     }
 
+    // dumpSubscriptions(subscriptions);
+
     while (nevents == 0) {
         for (subscriptions) |s| {
             var sub = s orelse continue;
@@ -152,4 +174,23 @@ pub fn poll(wasi_subscriptions: []WasiSubscription, events: []Event, nsubscripti
     }
 
     return @as(i32, @intCast(nevents));
+}
+
+fn dumpSubscriptions(subscriptions: []?Subscription) void {
+    for (subscriptions) |sub| {
+        if (sub == null) {
+            continue;
+        }
+        switch (sub.?.target) {
+            Target.fd_read => |s| {
+                log.debug.printf("fd_read: {}\n", .{s.socket.fd});
+            },
+            .fd_write => |s| {
+                log.debug.printf("fd_write: {}\n", .{s.socket.fd});
+            },
+            .clock => {
+                log.debug.print("clock\n");
+            },
+        }
+    }
 }

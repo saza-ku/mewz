@@ -124,12 +124,14 @@ err_t accept_callback(void *arg, struct tcp_pcb *newpcb, err_t err) {
 
   // TODO: handle error
   if (err != ERR_OK) {
+    printf("accept_callback: err = %d\n", err);
     return err;
   }
 
   int *new_fd = notifyAccepted(newpcb, *fd);
-  if (*new_fd < -1) {
-    return ERR_MEM;
+  if (new_fd == NULL) {
+    tcp_abort(newpcb);
+    return ERR_ABRT;
   }
 
   if (socketPush(*fd, (u8_t *)new_fd, sizeof(int)) < 0) {
@@ -230,9 +232,13 @@ void init() {
     unsigned char macaddr[] = {0x52, 0x54, 0x00, 0x12, 0x34, 0x56};
 
     ip_addr_t ipaddr, netmask, gateway;
-    IP4_ADDR(&ipaddr, 10, 0, 2, 15);
+    // IP4_ADDR(&ipaddr, 10, 0, 2, 15);
+    // IP4_ADDR(&netmask, 255, 255, 255, 0);
+    // IP4_ADDR(&gateway, 10, 0, 2, 2);
+
+    IP4_ADDR(&ipaddr, 192, 168, 2, 102);
     IP4_ADDR(&netmask, 255, 255, 255, 0);
-    IP4_ADDR(&gateway, 10, 0, 2, 2);
+    IP4_ADDR(&gateway, 192, 168, 2, 1);
 
     // Specify TCP port
     u16_t tcp_port = 80;

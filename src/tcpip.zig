@@ -150,7 +150,7 @@ pub const Socket = struct {
         const len = @min(buffer.len, locked_lwip.lwip_tcp_sndbuf(pcb));
         const err = locked_lwip.lwip_send(pcb, buffer.ptr, len);
         if (err < 0) {
-            log.debug.printf("lwip_send failed: {d}\n", .{err});
+            log.fatal.printf("lwip_send failed: {d}\n", .{err});
             return Error.Failed;
         }
 
@@ -311,8 +311,9 @@ export fn socketPush(fd: i32, ptr: [*]u8, len: usize) i32 {
     };
 
     const buffer = ptr[0..len];
-    socket.buffer.acquire().write(buffer) catch return -1;
-    socket.buffer.release();
+    const sock_buf = socket.buffer.acquire();
+    defer socket.buffer.release();
+    sock_buf.write(buffer) catch return -1;
     return 0;
 }
 

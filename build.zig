@@ -66,12 +66,14 @@ pub fn build(b: *Build) !void {
     kernel.setLinkerScriptPath(.{ .path = "src/x64.ld" });
     kernel.addAssemblyFile(Build.LazyPath{ .path = "src/boot.S" });
     kernel.addAssemblyFile(Build.LazyPath{ .path = "src/interrupt.S" });
+    kernel.addAssemblyFile(Build.LazyPath{ .path = "src/x64.S" });
     kernel.addObjectFile(Build.LazyPath{ .path = "build/newlib/libc.a" });
     kernel.addObjectFile(Build.LazyPath{ .path = "build/lwip/libtcpip.a" });
     kernel.addObjectFile(Build.LazyPath{ .path = "build/lwip/liblwipcore.a" });
     kernel.addObjectFile(Build.LazyPath{ .path = "build/lwip/liblwipallapps.a" });
     kernel.addCSourceFile(Build.Step.Compile.CSourceFile{ .file = Build.LazyPath{ .path = "src/c/newlib_support.c" }, .flags = &[_][]const u8{ "-I", "submodules/newlib/newlib/libc/include" } });
     kernel.addCSourceFile(Build.Step.Compile.CSourceFile{ .file = Build.LazyPath{ .path = "src/c/lwip_support.c" }, .flags = &[_][]const u8{ "-I", "submodules/newlib/newlib/libc/include" } });
+    kernel.addCSourceFile(Build.Step.Compile.CSourceFile{ .file = Build.LazyPath{ .path = "src/c/rdtsc.c" }, .flags = &[_][]const u8{} });
     if (obj_path_option) |p| {
         kernel.addObjectFile(Build.LazyPath{ .path = p });
     }

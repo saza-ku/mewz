@@ -21,6 +21,8 @@ const wasi = @import("wasi.zig");
 
 extern fn wasker_main() void;
 
+extern fn rdtsc() u64;
+
 export fn bspEarlyInit(boot_magic: u32, boot_params: u64) align(16) callconv(.C) void {
     _ = boot_magic;
     const bootinfo = @as(*multiboot.BootInfo, @ptrFromInt(boot_params));
