@@ -43,6 +43,10 @@ export fn bspEarlyInit(boot_magic: u32, boot_params: u64) align(16) callconv(.C)
 
     asm volatile ("sti");
 
+    const profile = @import("profile.zig");
+    profile.init();
+    profile.swtch(profile.State.WASM);
+
     if (options.is_test) {
         wasi.integrationTest();
     }

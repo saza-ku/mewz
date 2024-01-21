@@ -111,6 +111,9 @@ const VirtioNet = struct {
     ) void {
         @setRuntimeSafety(false);
 
+        const s = profile.swtchWithOldState(profile.State.VIRTIO);
+        defer profile.swtch(s);
+
         const idx = self.tx_ring_index % self.transmitq().num_descs;
         const base = @intFromPtr(&virtio_net.tx_ring[idx * PACKET_MAX_LEN]);
         defer self.tx_ring_index +%= 1;
@@ -138,13 +141,17 @@ const VirtioNet = struct {
             .len = @as(u32, @intCast(data.len)),
             .type = common.VirtqDescBufferType.ReadonlyFromDevice,
         } };
+
         self.transmitq().enqueue(desc_buf[0..2]);
+        profile.swtch(profile.State.NONE);
         self.virtio.transport.notifyQueue(self.transmitq());
     }
 
+    const profile = @import("../../profile.zig");
     pub fn receive(self: *Self) void {
         const isr = self.virtio.transport.getIsr();
         if (isr.isQueue()) {
+            profile.swtch(profile.State.VIRTIO);
             lwip.acquire().sys_check_timeouts();
             lwip.release();
 
@@ -155,8 +162,9 @@ const VirtioNet = struct {
                 const used_elem = rq.popUsedOne() orelse continue;
                 const buf = @as([*]u8, @ptrFromInt(rq.desc[used_elem.id].addr))[0..used_elem.len];
                 const packet_buf = buf[@sizeOf(Header)..];
-
+                profile.swtch(profile.State.LWIP);
                 rx_recv(@as(*u8, @ptrCast(packet_buf.ptr)), @as(u16, @intCast(packet_buf.len)));
+                profile.swtch(profile.State.VIRTIO);
 
                 rq.enqueue(([1]common.VirtqDescBuffer{common.VirtqDescBuffer{
                     .addr = rq.desc[used_elem.id].addr,
@@ -165,6 +173,7 @@ const VirtioNet = struct {
                 }})[0..1]);
             }
 
+            profile.swtch(profile.State.NONE);
             if (rq.not_notified_num_descs > rq.num_descs / 2) {
                 self.virtio.transport.notifyQueue(self.receiveq());
             }

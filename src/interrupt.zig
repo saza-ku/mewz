@@ -111,6 +111,8 @@ pub fn registerIrq(irq: u8, handler: *const fn (*InterruptFrame) void) void {
 
 var ticks: u32 = 0;
 export fn commonInterruptHandler(trapno: u8, frame: *InterruptFrame) callconv(.C) void {
+    const profile = @import("profile.zig");
+    const s = profile.swtchWithOldState(profile.State.NONE);
     switch (trapno) {
         T_BRKPT => {
             const buf = @as([*]u8, @ptrFromInt(frame.rdi))[0..1000];
@@ -131,6 +133,7 @@ export fn commonInterruptHandler(trapno: u8, frame: *InterruptFrame) callconv(.C
         },
     }
     lapic.lapiceoi();
+    profile.swtch(s);
 }
 
 fn printMessage(buf: []u8) void {

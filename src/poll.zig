@@ -67,7 +67,11 @@ const Target = union(enum) {
     clock: *Timer,
 };
 
+const profile = @import("profile.zig");
 pub fn poll(wasi_subscriptions: []WasiSubscription, events: []Event, nsubscriptions: i32) i32 {
+    const st = profile.swtchWithOldState(profile.State.POLL);
+    defer profile.swtch(st);
+
     var nevents: usize = 0;
     // FIXME: Can we avoid allocating this?
     var subscriptions = heap.runtime_allocator.alloc(?Subscription, @as(usize, @intCast(nsubscriptions))) catch @panic("failed to allocate memory for subscriptions: out of memory");

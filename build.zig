@@ -72,6 +72,7 @@ pub fn build(b: *Build) !void {
     kernel.addObjectFile(Build.LazyPath{ .path = "build/lwip/liblwipallapps.a" });
     kernel.addCSourceFile(Build.Step.Compile.CSourceFile{ .file = Build.LazyPath{ .path = "src/c/newlib_support.c" }, .flags = &[_][]const u8{ "-I", "submodules/newlib/newlib/libc/include" } });
     kernel.addCSourceFile(Build.Step.Compile.CSourceFile{ .file = Build.LazyPath{ .path = "src/c/lwip_support.c" }, .flags = &[_][]const u8{ "-I", "submodules/newlib/newlib/libc/include" } });
+    kernel.addCSourceFile(Build.Step.Compile.CSourceFile{ .file = Build.LazyPath{ .path = "src/c/rdtsc.c" }, .flags = &[_][]const u8{} });
     if (obj_path_option) |p| {
         kernel.addObjectFile(Build.LazyPath{ .path = p });
     }
