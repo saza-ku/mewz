@@ -45,11 +45,15 @@ pub const Timer = struct {
     }
 };
 
+const profile = @import("profile.zig");
 pub fn handleIrq(frame: *interrupt.InterruptFrame) void {
     _ = frame;
 
     ticks.acquire().* += 1;
     ticks.release();
+
+    const s = profile.swtchWithOldState(profile.State.TIMER);
+    defer profile.swtch(s);
 
     var timer_list = timers.acquire();
     for (timer_list.items, 0..) |timer, i| {
@@ -64,10 +68,8 @@ pub fn handleIrq(frame: *interrupt.InterruptFrame) void {
         var first: bool = true;
     };
 
-    if (getNanoSeconds() >= 70 * 1000000000 and S.first) {
-        log.warn.print("timer: 70 seconds passed\n");
-        const wasi = @import("wasi.zig");
-        wasi.printWasmElapsedTime();
+    if (getNanoSeconds() >= 20 * 1000000000 and S.first) {
+        profile.printResult();
         S.first = false;
     }
 }

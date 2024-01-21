@@ -140,7 +140,9 @@ const VirtioNet = struct {
         self.virtio.transport.notifyQueue(self.transmitq());
     }
 
+    const profile = @import("../../profile.zig");
     pub fn receive(self: *Self) void {
+        profile.swtch(profile.State.VIRTIO);
         const isr = self.virtio.transport.getIsr();
         if (isr.isQueue()) {
             const rq = self.receiveq();
@@ -150,7 +152,10 @@ const VirtioNet = struct {
                 const buf = rq.retrieveFromUsedDesc(chain, heap.runtime_allocator) catch @panic("virtio net receive failed");
                 defer heap.runtime_allocator.free(buf);
                 const packet_buf = buf[@sizeOf(Header)..chain.total_len];
+
+                profile.swtch(profile.State.LWIP);
                 rx_recv(@as(*u8, @ptrCast(packet_buf.ptr)), @as(u16, @intCast(packet_buf.len)));
+                profile.swtch(profile.State.VIRTIO);
 
                 rq.enqueue(chain.desc_list.?);
             }

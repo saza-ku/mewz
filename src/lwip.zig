@@ -6,12 +6,16 @@ pub var lock = sync.SpinLock(empty).new(@constCast(&empty{}));
 
 const vtable = VTable{};
 
+const profile = @import("profile.zig");
+var old_state: profile.State = undefined;
 pub fn acquire() *const VTable {
     _ = lock.acquire();
+    old_state = profile.swtchWithOldState(profile.State.LWIP);
     return &vtable;
 }
 
 pub fn release() void {
+    profile.swtch(old_state);
     lock.release();
 }
 

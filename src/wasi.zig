@@ -38,47 +38,18 @@ var wasi_time: u64 = 0;
 var poll_elapsed_time: u64 = 0;
 var poll_time: u64 = 0;
 
+const profile = @import("profile.zig");
 fn finishWasm() void {
-    const sync = @import("sync.zig");
-    sync.pushcli();
-    defer sync.popcli();
-
-    const old_time = wasm_time;
-    wasm_time = timer.getNanoSeconds();
-    wasm_elapsed_time += wasm_time - old_time;
-
-    wasi_time = wasm_time;
+    profile.swtch(profile.State.WASI);
 }
 
 pub fn enterWasm() void {
-    const sync = @import("sync.zig");
-    sync.pushcli();
-    defer sync.popcli();
-
-    wasm_time = timer.getNanoSeconds();
-
-    const old_time = wasi_time;
-    wasi_time = wasm_time;
-    wasi_elapsed_time += wasi_time - old_time;
+    profile.swtch(profile.State.WASM);
 }
 
-fn enterPoll() void {
-    const sync = @import("sync.zig");
-    sync.pushcli();
-    defer sync.popcli();
+fn enterPoll() void {}
 
-    poll_time = timer.getNanoSeconds();
-}
-
-fn finishPoll() void {
-    const sync = @import("sync.zig");
-    sync.pushcli();
-    defer sync.popcli();
-
-    const old_time = poll_time;
-    poll_time = timer.getNanoSeconds();
-    poll_elapsed_time += poll_time - old_time;
-}
+fn finishPoll() void {}
 
 pub fn printWasmElapsedTime() void {
     const sync = @import("sync.zig");

@@ -78,6 +78,7 @@ pub export fn sbrk(diff: i32) usize {
     return old_program_break;
 }
 
+const profile = @import("profile.zig");
 fn rawCAlloc(
     _: *anyopaque,
     len: usize,
@@ -88,6 +89,9 @@ fn rawCAlloc(
 
     _ = lock.acquire();
     defer lock.release();
+
+    const s = profile.swtchWithOldState(profile.State.MALLOC);
+    defer profile.swtch(s);
 
     if (log2_ptr_align > comptime std.math.log2_int(usize, @alignOf(std.c.max_align_t))) {
         @panic("rawCAlloc: alignment too small");
@@ -129,6 +133,9 @@ fn rawCFree(
 
     _ = lock.acquire();
     defer lock.release();
+
+    const s = profile.swtchWithOldState(profile.State.MALLOC);
+    defer profile.swtch(s);
 
     free(buf.ptr);
 }
