@@ -1,7 +1,7 @@
 const std = @import("std");
 const Build = @import("std").Build;
 const Target = @import("std").Target;
-const CrossTarget = @import("std").zig.CrossTarget;
+const Query = @import("std").Target.Query;
 const Feature = @import("std").Target.Cpu.Feature;
 
 const TEST_DIR_PATH = "build/test";
@@ -81,17 +81,23 @@ pub fn build(b: *Build) !void {
 
     const features = Target.x86.Feature;
 
-    var disabled_features = Feature.Set.empty;
     var enabled_features = Feature.Set.empty;
 
-    disabled_features.addFeature(@intFromEnum(features.mmx));
-    disabled_features.addFeature(@intFromEnum(features.sse));
-    disabled_features.addFeature(@intFromEnum(features.sse2));
-    disabled_features.addFeature(@intFromEnum(features.avx));
-    disabled_features.addFeature(@intFromEnum(features.avx2));
     enabled_features.addFeature(@intFromEnum(features.soft_float));
 
-    const target = CrossTarget{ .cpu_arch = Target.Cpu.Arch.x86_64, .os_tag = Target.Os.Tag.freestanding, .cpu_features_sub = disabled_features, .cpu_features_add = enabled_features };
+    const target = Target{
+        .cpu = Target.Cpu{
+            .arch = .x86_64,
+            .model = Target.Cpu.Model.generic(Target.Cpu.Arch.x86_64),
+            .features = enabled_features,
+        },
+        .os = .{
+            .tag = .freestanding,
+            .version_range = .{ .none = {} },
+        },
+        .abi = .eabi,
+        .ofmt = .elf,
+    };
 
     const optimize = b.standardOptimizeOption(.{});
 
@@ -100,26 +106,29 @@ pub fn build(b: *Build) !void {
 
     const kernel = b.addExecutable(.{
         .name = "mewz.elf",
-        .root_source_file = .{ .path = "src/main.zig" },
+        .root_source_file = b.path("src/main.zig"),
         .optimize = optimize,
-        .target = target,
-        .linkage = std.build.CompileStep.Linkage.static,
+        .target = std.Build.ResolvedTarget{
+            .result = target,
+            .query = Target.Query.fromTarget(target),
+        },
+        .linkage = std.builtin.LinkMode.static,
     });
-    kernel.code_model = .kernel;
-    kernel.setLinkerScriptPath(.{ .path = "src/x64.ld" });
-    kernel.addAssemblyFile(Build.LazyPath{ .path = "src/boot.S" });
-    kernel.addAssemblyFile(Build.LazyPath{ .path = "src/interrupt.S" });
-    kernel.addObjectFile(Build.LazyPath{ .path = "build/newlib/libc.a" });
-    kernel.addObjectFile(Build.LazyPath{ .path = "build/lwip/libtcpip.a" });
-    kernel.addObjectFile(Build.LazyPath{ .path = "build/lwip/liblwipcore.a" });
-    kernel.addObjectFile(Build.LazyPath{ .path = "build/lwip/liblwipallapps.a" });
-    kernel.addCSourceFile(Build.Step.Compile.CSourceFile{ .file = Build.LazyPath{ .path = "src/c/newlib_support.c" }, .flags = &[_][]const u8{ "-I", "submodules/newlib/newlib/libc/include" } });
-    kernel.addCSourceFile(Build.Step.Compile.CSourceFile{ .file = Build.LazyPath{ .path = "src/c/lwip_support.c" }, .flags = &[_][]const u8{ "-I", "submodules/newlib/newlib/libc/include" } });
+
+    kernel.setLinkerScriptPath(b.path("src/x64.ld"));
+    kernel.addAssemblyFile(b.path("src/boot.S"));
+    kernel.addAssemblyFile(b.path("src/interrupt.S"));
+    kernel.addObjectFile(b.path("build/newlib/libc.a"));
+    kernel.addObjectFile(b.path("build/lwip/libtcpip.a"));
+    kernel.addObjectFile(b.path("build/lwip/liblwipcore.a"));
+    kernel.addObjectFile(b.path("build/lwip/liblwipallapps.a"));
+    kernel.addCSourceFile(Build.Module.CSourceFile{ .file = b.path("src/c/newlib_support.c"), .flags = &[_][]const u8{ "-I", "submodules/newlib/newlib/libc/include" } });
+    kernel.addCSourceFile(Build.Module.CSourceFile{ .file = b.path("src/c/lwip_support.c"), .flags = &[_][]const u8{ "-I", "submodules/newlib/newlib/libc/include" } });
     if (params.obj_path) |p| {
-        kernel.addObjectFile(Build.LazyPath{ .path = p });
+        kernel.addObjectFile(b.path(p));
     }
     if (params.dir_path) |_| {
-        kernel.addObjectFile(Build.LazyPath{ .path = "build/disk.o" });
+        kernel.addObjectFile(b.path("build/disk.o"));
     }
     kernel.addOptions("options", options);
     b.installArtifact(kernel);
