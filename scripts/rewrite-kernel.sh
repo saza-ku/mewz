@@ -9,6 +9,8 @@ offset=18
 new_data="\x03\x00"
 data_size=2
 
+cp $file_path zig-out/bin/mewz.original.elf
+
 head -c $offset "$file_path" > temp_head
 tail -c +$((offset + 1 + data_size)) "$file_path" > temp_tail
 
