@@ -47,10 +47,9 @@ export fn bspEarlyInit(boot_magic: u32, boot_params: u32) align(16) callconv(.C)
     log.debug.printf("bootinfo size: {d}\n", .{@sizeOf(@TypeOf(bootinfo.*))});
     log.debug.printf("bootinfo.flags: {b:0>8}\n", .{bootinfo.flags});
     const boot_loader_name = @as([*]u8, @ptrFromInt(bootinfo.boot_loader_name))[0..10];
-    log.debug.printf("boot_loader_name: {s}", .{boot_loader_name});
+    log.debug.printf("boot_loader_name: {s}\n", .{boot_loader_name});
 
     mem.init(bootinfo);
-    log.fatal.print("ok?\n");
     pci.init();
     log.debug.print("pci init finish\n");
     if (param.params.isNetworkEnabled()) {
