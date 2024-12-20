@@ -197,7 +197,6 @@ pub fn init() void {
         .new(&pci_dev, (1 << 32) | @intFromEnum(VirtioNetDeviceFeature.VIRTIO_NET_F_MAC), 2, mem.boottime_allocator.?) catch @panic("virtio init failed");
 
     const virtio_net_slice = mem.boottime_allocator.?.alloc(VirtioNet, 1) catch @panic("virtio net alloc failed");
-    log.fatal.printf("virtio_net_slice: {x}\n", .{@intFromPtr(virtio_net_slice.ptr)});
     virtio_net = @as(*VirtioNet, @ptrCast(virtio_net_slice.ptr));
     virtio_net.* = VirtioNet.new(virtio);
     interrupt.registerIrq(virtio_net.virtio.transport.pci_dev.config.interrupt_line, handleIrq);

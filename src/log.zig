@@ -13,7 +13,7 @@ const LogLevel = enum(u8) {
     const Self = @This();
 
     fn fromString(s: []const u8) Self {
-        if (true) {
+        if (std.mem.eql(u8, s, "debug")) {
             return .Debug;
         } else if (std.mem.eql(u8, s, "info")) {
             return .Info;

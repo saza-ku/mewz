@@ -51,23 +51,18 @@ pub fn Virtio(comptime DeviceConfigType: type) type {
                 @panic("virtio net failed to set FEATURES_OK");
             }
 
-            log.fatal.print("finished device negotiation\n");
             const queue_size = transport.common_config.queue_size;
             const virtqueues = try allocator.alloc(Virtqueue, queue_num);
             for (0..queue_num) |i| {
-                log.fatal.printf("queue index: {d}\n", .{i});
                 const queue_index = @as(u16, @intCast(i));
                 transport.common_config.queue_select = queue_index;
-                log.fatal.printf("queue index: {d}\n", .{i});
                 const virtqueue = try Virtqueue.new(queue_index, queue_size, allocator);
-                log.fatal.printf("queue index: {d}\n", .{i});
                 transport.common_config.queue_desc = @as(u64, @intFromPtr(virtqueue.desc));
                 transport.common_config.queue_driver = @as(u64, @intCast(virtqueue.avail.addr()));
                 transport.common_config.queue_device = @as(u64, @intCast(virtqueue.used.addr()));
                 transport.common_config.queue_enable = 1;
                 virtqueues[i] = virtqueue;
             }
-            log.fatal.printf("virt queues: {d}\n", .{virtqueues.len});
 
             ioapic.ioapicenable(dev.config.interrupt_line, 0);
 
@@ -97,22 +92,14 @@ pub const Virtqueue = struct {
 
     fn new(index: u16, queue_size: u16, allocator: Allocator) Error!Self {
         const desc_slice = try allocator.alignedAlloc(VirtqDesc, 16, queue_size * @sizeOf(VirtqDesc));
-        log.fatal.printf("desc_slice: {x}\n", .{@intFromPtr(desc_slice.ptr)});
         @memset(desc_slice, VirtqDesc{ .addr = 0, .len = 0, .flags = 0, .next = 0 });
         const desc = @as([*]volatile VirtqDesc, @ptrCast(desc_slice));
         for (0..queue_size) |i| {
             desc[i].next = if (i == queue_size - 1) 0 else @as(u16, @intCast(i + 1));
         }
 
-        log.fatal.print("finished setting chain\n");
-
-        log.fatal.printf("cnt addr: {x}\n", .{@intFromPtr(&cnt)});
         const avail = try AvailRing.new(queue_size, allocator);
-        log.fatal.printf("avail: {x}\n", .{@intFromPtr(avail.data.ptr)});
-        log.fatal.printf("cnt: {d}\n", .{cnt});
         const used = try UsedRing.new(queue_size, allocator);
-        log.fatal.printf("used: {x}\n", .{@intFromPtr(used.data.ptr)});
-        log.fatal.printf("cnt: {d}\n", .{cnt});
 
         return Self{
             .desc = desc,
@@ -302,7 +289,6 @@ pub const VirtqDesc = packed struct {
     }
 };
 
-var cnt: u32 = 0;
 pub const AvailRing = struct {
     // flags: u16,
     // idx: u16,
@@ -314,8 +300,6 @@ pub const AvailRing = struct {
     const Self = @This();
 
     fn new(queue_size: u16, allocator: Allocator) Error!Self {
-        log.fatal.printf("cnt: {d}\n", .{cnt});
-        cnt += 1;
         const size = @sizeOf(u16) * queue_size + @sizeOf(u16) * 3;
         const data = allocator.alignedAlloc(u8, 8, size) catch |err| {
             log.fatal.printf("failed to allocate avail ring: {}\n", .{err});
@@ -528,7 +512,6 @@ pub fn VirtioMmioTransport(comptime DeviceConfigType: type) type {
             }
 
             @constCast(dev).enable_bus_master();
-            log.fatal.print("return self\n");
 
             return self;
         }
