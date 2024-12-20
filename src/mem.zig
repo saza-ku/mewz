@@ -199,7 +199,6 @@ pub fn init(info: *multiboot.BootInfo) void {
                 if (length >= MIN_BOOTTIME_ALLOCATOR_SIZE) {
                     // create a new allocator for the boot time
                     const buf = @as([*]u8, @ptrFromInt(aligned_base))[0..length];
-                    log.debug.printf("boottime allocator: addr=0x{x}, len=0x{x}\n", .{ aligned_base, length });
                     boottime_fba = FixedBufferAllocator.init(buf);
                     boottime_allocator = boottime_fba.?.allocator();
 
