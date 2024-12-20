@@ -111,7 +111,6 @@ pub fn registerIrq(irq: u8, handler: *const fn (*InterruptFrame) void) void {
 
 var ticks: u32 = 0;
 export fn commonInterruptHandler(trapno: u8, frame: *InterruptFrame) callconv(.C) void {
-    log.fatal.printf("interrupted: {d}\n", .{trapno});
     switch (trapno) {
         T_BRKPT => {
             const buf = @as([*]u8, @ptrFromInt(frame.rdi))[0..1000];
@@ -119,13 +118,13 @@ export fn commonInterruptHandler(trapno: u8, frame: *InterruptFrame) callconv(.C
             while (true) {}
         },
         T_IRQ0...255 => {
-            //const irq = trapno - T_IRQ0;
-            //if (irq_handlers[irq]) |irq_handler| {
-            //    irq_handler(frame);
-            //} else {
-            //    log.fatal.print("unregisterd interrupt\n");
-            //    unexpectedInterruptHandler(trapno, frame);
-            //}
+            const irq = trapno - T_IRQ0;
+            if (irq_handlers[irq]) |irq_handler| {
+                irq_handler(frame);
+            } else {
+                log.fatal.print("unregisterd interrupt\n");
+                unexpectedInterruptHandler(trapno, frame);
+            }
         },
         else => {
             unexpectedInterruptHandler(trapno, frame);

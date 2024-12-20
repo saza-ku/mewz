@@ -95,7 +95,7 @@ SECTIONS {
 
         /* The initial stack for BSP. We need reserve a large space since Rust
            tend to consume too much memory especially in the debug buid :/  */
-        . += 0x100000;
+        . += 0x200000;
         __boot_stack = . - VMA_OFFSET; /* physical address */
 
         . = ALIGN(4096);

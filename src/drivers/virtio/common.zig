@@ -106,10 +106,13 @@ pub const Virtqueue = struct {
 
         log.fatal.print("finished setting chain\n");
 
+        log.fatal.printf("cnt addr: {x}\n", .{@intFromPtr(&cnt)});
         const avail = try AvailRing.new(queue_size, allocator);
         log.fatal.printf("avail: {x}\n", .{@intFromPtr(avail.data.ptr)});
+        log.fatal.printf("cnt: {d}\n", .{cnt});
         const used = try UsedRing.new(queue_size, allocator);
         log.fatal.printf("used: {x}\n", .{@intFromPtr(used.data.ptr)});
+        log.fatal.printf("cnt: {d}\n", .{cnt});
 
         return Self{
             .desc = desc,
@@ -299,7 +302,7 @@ pub const VirtqDesc = packed struct {
     }
 };
 
-var cnt: u32 = 3;
+var cnt: u32 = 0;
 pub const AvailRing = struct {
     // flags: u16,
     // idx: u16,
@@ -311,6 +314,7 @@ pub const AvailRing = struct {
     const Self = @This();
 
     fn new(queue_size: u16, allocator: Allocator) Error!Self {
+        log.fatal.printf("cnt: {d}\n", .{cnt});
         cnt += 1;
         const size = @sizeOf(u16) * queue_size + @sizeOf(u16) * 3;
         const data = allocator.alignedAlloc(u8, 8, size) catch |err| {
