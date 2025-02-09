@@ -6,9 +6,14 @@ const Params = struct {
     addr: ?u32 = null,
     subnetmask: ?u32 = null,
     gateway: ?u32 = null,
+    virtiofs_tag: ?[]const u8 = null,
 
     pub fn isNetworkEnabled(self: Params) bool {
         return self.addr != null and self.subnetmask != null and self.gateway != null;
+    }
+
+    pub fn isVirtioFsEnabled(self: Params) bool {
+        return self.virtiofs_tag != null;
     }
 };
 
@@ -29,6 +34,8 @@ pub fn parseFromArgs(args: []const u8) void {
             params.gateway = parseIp4Address(v) orelse {
                 @panic("invalid ip format");
             };
+        } else if (std.mem.eql(u8, k, "virtiofs")) {
+            params.virtiofs_tag = v;
         } else {
             continue;
         }

@@ -17,6 +17,7 @@ const timer = @import("timer.zig");
 const util = @import("util.zig");
 const multiboot = @import("multiboot.zig");
 const virtio_net = @import("drivers/virtio/net.zig");
+const virtio_fs = @import("drivers/virtio/fs.zig");
 const interrupt = @import("interrupt.zig");
 const x64 = @import("x64.zig");
 
@@ -43,8 +44,13 @@ export fn bspEarlyInit(boot_magic: u32, boot_params: u32) align(16) callconv(.C)
     mem.init(bootinfo);
     pci.init();
     log.debug.print("pci init finish\n");
+    
+    // Initialize devices
     if (param.params.isNetworkEnabled()) {
         virtio_net.init();
+    }
+    if (param.params.isVirtioFsEnabled()) {
+        virtio_fs.init();
     }
 
     mem.init2();
