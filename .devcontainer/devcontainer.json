@@ -4,6 +4,7 @@
 		"context": "..",
 		"dockerfile": "./Dockerfile"
 	},
+	"containerUser": "vscode",
 	"customizations": {
 		"vscode": {
 			"extensions": [
@@ -11,4 +12,10 @@
 			]
 		}
 	},
+	"mounts": [
+		"type=volume,target=${containerWorkspaceFolder}/build",
+	],
+	"postCreateCommand": {
+		"fixVVolumePermissions": "sudo chown -R $(whoami): ${containerWorkspaceFolder}/build",
+	}
 }
