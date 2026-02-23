@@ -2,7 +2,6 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 
 const heap = @import("heap.zig");
-const fs = @import("fs.zig");
 const http_client = @import("http_client.zig");
 const log = @import("log.zig");
 const mem = @import("mem.zig");
@@ -269,19 +268,13 @@ pub export fn path_open(fd: i32, dirflags: i32, path_addr: i32, path_length: i32
 
     // get stream from fd
     const s = stream.fd_table.get(fd) orelse return WasiError.BADF;
-    const dir = switch (s.*) {
+    var dir = switch (s.*) {
         Stream.dir => |*d| d,
         else => return WasiError.BADF,
     };
 
-    // search file by name
-    const regular_file = dir.getFileByName(path_name) orelse return WasiError.NOENT;
-
-    // open file
-    const opened_file = fs.OpenedFile{
-        .inner = regular_file,
-        .pos = 0,
-    };
+    // open file through VFS
+    const opened_file = dir.openFile(path_name) orelse return WasiError.NOENT;
     const new_fd = stream.fd_table.set(Stream{ .opened_file = opened_file }) catch return WasiError.NOMEM;
 
     // return opened fd
@@ -664,15 +657,31 @@ pub fn integrationTest() void {
 
     _ = memory_grow(1) * mem.BLOCK_SIZE;
 
+    if (!testReadfile()) {
+        return;
+    }
+
+    if (!testVfsPrestat()) {
+        return;
+    }
+
+    if (!testVfsFilestatGet()) {
+        return;
+    }
+
+    if (!testVfsOpenNonExistent()) {
+        return;
+    }
+
+    if (!testVfsReadMultipleChunks()) {
+        return;
+    }
+
     if (!testClientSocket()) {
         return;
     }
 
     if (!testServerSocket()) {
-        return;
-    }
-
-    if (!testReadfile()) {
         return;
     }
 
@@ -754,6 +763,174 @@ fn testReadfile() bool {
         return false;
     }
 
+    return true;
+}
+
+fn testVfsPrestat() bool {
+    @setRuntimeSafety(false);
+
+    // fd=3 is the root directory registered at init
+    const prestat_addr_in_linear_memory = 300;
+    var res = fd_prestat_get(3, prestat_addr_in_linear_memory);
+    if (@intFromEnum(res) != 0) {
+        log.fatal.printf("vfs prestat: fd_prestat_get failed: {d}\n", .{@intFromEnum(res)});
+        return false;
+    }
+    const prestat = @as(*Prestat, @ptrFromInt(@as(usize, prestat_addr_in_linear_memory) + linear_memory_offset));
+    if (prestat.tag != 0) {
+        log.fatal.printf("vfs prestat: unexpected tag={d}\n", .{prestat.tag});
+        return false;
+    }
+    if (prestat.pr_name_len == 0) {
+        log.fatal.print("vfs prestat: pr_name_len is 0\n");
+        return false;
+    }
+
+    const dir_name_buf_addr = 350;
+    res = fd_prestat_dir_name(3, dir_name_buf_addr, @as(i32, @intCast(prestat.pr_name_len)));
+    if (@intFromEnum(res) != 0) {
+        log.fatal.printf("vfs prestat: fd_prestat_dir_name failed: {d}\n", .{@intFromEnum(res)});
+        return false;
+    }
+    const dir_name = @as([*]u8, @ptrFromInt(@as(usize, dir_name_buf_addr) + linear_memory_offset))[0..prestat.pr_name_len];
+    log.info.printf("vfs prestat: root dir name={s}, len={d}\n", .{ dir_name, prestat.pr_name_len });
+
+    // fd=4 should NOT be a prestat directory
+    res = fd_prestat_get(4, prestat_addr_in_linear_memory);
+    if (@intFromEnum(res) == 0) {
+        log.fatal.print("vfs prestat: fd=4 should not be a prestat dir\n");
+        return false;
+    }
+
+    log.info.print("vfs prestat test: PASSED\n");
+    return true;
+}
+
+fn testVfsFilestatGet() bool {
+    @setRuntimeSafety(false);
+
+    const fd_addr = 400;
+    const path = "test.txt";
+    const path_addr = 416;
+    @memcpy(@as([*]u8, @ptrFromInt(@as(usize, path_addr) + linear_memory_offset)), path);
+    var res = path_open(3, 0, path_addr, path.len, 0, 0, 0, 0, fd_addr);
+    if (@intFromEnum(res) != 0) {
+        log.fatal.printf("vfs filestat: path_open failed: {d}\n", .{@intFromEnum(res)});
+        return false;
+    }
+    const opened_fd = @as(*i32, @ptrFromInt(@as(usize, fd_addr) + linear_memory_offset)).*;
+
+    const filestat_addr = 512;
+    res = fd_filestat_get(opened_fd, filestat_addr);
+    if (@intFromEnum(res) != 0) {
+        log.fatal.printf("vfs filestat: fd_filestat_get failed: {d}\n", .{@intFromEnum(res)});
+        _ = fd_close(opened_fd);
+        return false;
+    }
+    const filestat = @as(*types.FileStat, @ptrFromInt(@as(usize, filestat_addr) + linear_memory_offset));
+
+    if (filestat.size == 0) {
+        log.fatal.print("vfs filestat: file size is 0\n");
+        _ = fd_close(opened_fd);
+        return false;
+    }
+    log.info.printf("vfs filestat: size={d}, type={d}\n", .{ filestat.size, @intFromEnum(filestat.file_type) });
+
+    const fdstat_addr = 640;
+    res = fd_fdstat_get(opened_fd, fdstat_addr);
+    if (@intFromEnum(res) != 0) {
+        log.fatal.printf("vfs filestat: fd_fdstat_get failed: {d}\n", .{@intFromEnum(res)});
+        _ = fd_close(opened_fd);
+        return false;
+    }
+
+    _ = fd_close(opened_fd);
+    log.info.print("vfs filestat test: PASSED\n");
+    return true;
+}
+
+fn testVfsOpenNonExistent() bool {
+    @setRuntimeSafety(false);
+
+    const fd_addr = 700;
+    const path = "nonexistent_file.txt";
+    const path_addr = 710;
+    @memcpy(@as([*]u8, @ptrFromInt(@as(usize, path_addr) + linear_memory_offset)), path);
+
+    const res = path_open(3, 0, path_addr, path.len, 0, 0, 0, 0, fd_addr);
+    if (res != WasiError.NOENT) {
+        log.fatal.printf("vfs open nonexistent: expected NOENT, got {d}\n", .{@intFromEnum(res)});
+        return false;
+    }
+
+    log.info.print("vfs open nonexistent test: PASSED\n");
+    return true;
+}
+
+fn testVfsReadMultipleChunks() bool {
+    @setRuntimeSafety(false);
+
+    const fd_addr = 800;
+    const path = "test.txt";
+    const path_addr = 816;
+    @memcpy(@as([*]u8, @ptrFromInt(@as(usize, path_addr) + linear_memory_offset)), path);
+
+    var res = path_open(3, 0, path_addr, path.len, 0, 0, 0, 0, fd_addr);
+    if (@intFromEnum(res) != 0) {
+        log.fatal.printf("vfs multi-read: path_open failed: {d}\n", .{@intFromEnum(res)});
+        return false;
+    }
+    const opened_fd = @as(*i32, @ptrFromInt(@as(usize, fd_addr) + linear_memory_offset)).*;
+
+    const iovec_addr = 856;
+    const buf_addr = 896;
+    const size_addr = 872;
+    var iovec = @as(*IoVec, @ptrFromInt(@as(usize, iovec_addr) + linear_memory_offset));
+    iovec.buf = buf_addr;
+    iovec.buf_len = 4;
+    res = fd_read(opened_fd, iovec_addr, 1, size_addr);
+    if (@intFromEnum(res) != 0) {
+        log.fatal.printf("vfs multi-read: first fd_read failed: {d}\n", .{@intFromEnum(res)});
+        _ = fd_close(opened_fd);
+        return false;
+    }
+    const nread1 = @as(*i32, @ptrFromInt(@as(usize, size_addr) + linear_memory_offset)).*;
+    if (nread1 != 4) {
+        log.fatal.printf("vfs multi-read: expected 4 bytes, got {d}\n", .{nread1});
+        _ = fd_close(opened_fd);
+        return false;
+    }
+    const chunk1 = @as([*]u8, @ptrFromInt(@as(usize, buf_addr) + linear_memory_offset))[0..4];
+    if (!std.mem.eql(u8, chunk1, "fd_r")) {
+        log.fatal.printf("vfs multi-read: first chunk mismatch: {s}\n", .{chunk1});
+        _ = fd_close(opened_fd);
+        return false;
+    }
+
+    const buf_addr2 = 960;
+    iovec.buf = buf_addr2;
+    iovec.buf_len = 4;
+    res = fd_read(opened_fd, iovec_addr, 1, size_addr);
+    if (@intFromEnum(res) != 0) {
+        log.fatal.printf("vfs multi-read: second fd_read failed: {d}\n", .{@intFromEnum(res)});
+        _ = fd_close(opened_fd);
+        return false;
+    }
+    const nread2 = @as(*i32, @ptrFromInt(@as(usize, size_addr) + linear_memory_offset)).*;
+    if (nread2 != 4) {
+        log.fatal.printf("vfs multi-read: expected 4 bytes, got {d}\n", .{nread2});
+        _ = fd_close(opened_fd);
+        return false;
+    }
+    const chunk2 = @as([*]u8, @ptrFromInt(@as(usize, buf_addr2) + linear_memory_offset))[0..4];
+    if (!std.mem.eql(u8, chunk2, "ead ")) {
+        log.fatal.printf("vfs multi-read: second chunk mismatch: {s}\n", .{chunk2});
+        _ = fd_close(opened_fd);
+        return false;
+    }
+
+    _ = fd_close(opened_fd);
+    log.info.print("vfs multi-read test: PASSED\n");
     return true;
 }
 

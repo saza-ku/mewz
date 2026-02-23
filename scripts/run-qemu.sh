@@ -32,11 +32,16 @@ QEMU_ARGS=(
 )
 
 DEBUG=false
+VIRTIOFS_DIR=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
         -d | --debug)
             DEBUG=true
+            ;;
+        --virtiofs)
+            shift
+            VIRTIOFS_DIR="$1"
             ;;
         -*)
             echo "invalid option"
@@ -50,6 +55,23 @@ done
 
 if $DEBUG; then
     QEMU_ARGS+=("-S")
+fi
+
+if [[ -n "$VIRTIOFS_DIR" ]]; then
+    VIRTIOFS_SOCK="/tmp/mewz-virtiofsd-$$"
+
+    virtiofsd --socket-path="$VIRTIOFS_SOCK" -o source="$VIRTIOFS_DIR" &
+    VIRTIOFSD_PID=$!
+    trap "kill $VIRTIOFSD_PID 2>/dev/null; rm -f $VIRTIOFS_SOCK" EXIT
+
+    sleep 1
+
+    QEMU_ARGS+=(
+        "-chardev" "socket,id=char0,path=$VIRTIOFS_SOCK"
+        "-device" "vhost-user-fs-pci,queue-size=1024,chardev=char0,tag=myfs,disable-legacy=on,disable-modern=off"
+        "-object" "memory-backend-file,id=mem,size=512M,mem-path=/dev/shm,share=on"
+        "-numa" "node,memdev=mem"
+    )
 fi
 
 if [[ -e /dev/kvm && -r /dev/kvm && -w /dev/kvm ]]; then

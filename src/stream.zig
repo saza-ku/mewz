@@ -1,13 +1,13 @@
-const fs = @import("fs.zig");
 const log = @import("log.zig");
 const uart = @import("uart.zig");
 const tcpip = @import("tcpip.zig");
 const sync = @import("sync.zig");
+const vfs = @import("vfs.zig");
 
-const Directory = fs.Directory;
+const VfsFile = vfs.VfsFile;
+const VfsDir = vfs.VfsDir;
 const Socket = tcpip.Socket;
 const SpinLock = sync.SpinLock;
-const OpenedFile = fs.OpenedFile;
 
 const STREAM_NUM = 2048;
 
@@ -79,8 +79,8 @@ const FdTable = struct {
 pub const Stream = union(enum) {
     uart: void,
     socket: Socket,
-    opened_file: OpenedFile,
-    dir: Directory,
+    opened_file: VfsFile,
+    dir: VfsDir,
 
     const Self = @This();
 
@@ -108,7 +108,9 @@ pub const Stream = union(enum) {
         return switch (self.*) {
             Self.uart => @panic("close on uart unimplemented"),
             Self.socket => |*sock| sock.close(),
-            Self.opened_file => {},
+            Self.opened_file => |*f| {
+                f.close();
+            },
             Self.dir => {},
         };
     }
@@ -137,7 +139,7 @@ pub const Stream = union(enum) {
         return switch (self.*) {
             Self.uart => 1,
             Self.socket => |*sock| sock.bytesCanRead(),
-            Self.opened_file => |*f| f.inner.data.len - f.pos,
+            Self.opened_file => |*f| f.bytesCanRead(),
             Self.dir => 0,
         };
     }
@@ -155,7 +157,7 @@ pub const Stream = union(enum) {
         return switch (self.*) {
             Self.uart => 0,
             Self.socket => 0,
-            Self.opened_file => |*f| f.inner.data.len,
+            Self.opened_file => |*f| @as(usize, @intCast(f.size())),
             Self.dir => 0,
         };
     }
