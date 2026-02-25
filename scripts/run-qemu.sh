@@ -9,8 +9,6 @@ QEMU_ARGS=(
     "zig-out/bin/mewz.qemu.elf"
     "-cpu"
     "Icelake-Server"
-    "-m"
-    "512"
     "-device"
     "virtio-net,netdev=net0,disable-legacy=on,disable-modern=off"
     "-netdev"
@@ -60,18 +58,35 @@ fi
 if [[ -n "$VIRTIOFS_DIR" ]]; then
     VIRTIOFS_SOCK="/tmp/mewz-virtiofsd-$$"
 
-    virtiofsd --socket-path="$VIRTIOFS_SOCK" -o source="$VIRTIOFS_DIR" &
-    VIRTIOFSD_PID=$!
-    trap "kill $VIRTIOFSD_PID 2>/dev/null; rm -f $VIRTIOFS_SOCK" EXIT
+    VIRTIOFSD="virtiofsd"
+    if ! command -v virtiofsd &>/dev/null; then
+        VIRTIOFSD="/usr/lib/qemu/virtiofsd"
+    fi
 
-    sleep 1
+    VIRTIOFS_DIR_ABS="$(cd "$VIRTIOFS_DIR" && pwd)"
+    sudo "$VIRTIOFSD" --socket-path="$VIRTIOFS_SOCK" -o source="$VIRTIOFS_DIR_ABS" -o sandbox=chroot &
+    VIRTIOFSD_PID=$!
+    trap "sudo kill $VIRTIOFSD_PID 2>/dev/null; rm -f $VIRTIOFS_SOCK" EXIT
+
+    # Wait for socket to appear
+    for i in $(seq 1 20); do
+        [[ -S "$VIRTIOFS_SOCK" ]] && break
+        sleep 0.2
+    done
+    if [[ ! -S "$VIRTIOFS_SOCK" ]]; then
+        echo "virtiofsd socket did not appear"
+        exit 1
+    fi
+    sudo chmod 666 "$VIRTIOFS_SOCK"
 
     QEMU_ARGS+=(
         "-chardev" "socket,id=char0,path=$VIRTIOFS_SOCK"
-        "-device" "vhost-user-fs-pci,queue-size=1024,chardev=char0,tag=myfs,disable-legacy=on,disable-modern=off"
-        "-object" "memory-backend-file,id=mem,size=512M,mem-path=/dev/shm,share=on"
-        "-numa" "node,memdev=mem"
+        "-device" "vhost-user-fs-pci,queue-size=1024,chardev=char0,tag=myfs"
+        "-object" "memory-backend-memfd,id=mem,size=512M,share=on"
+        "-machine" "memory-backend=mem"
     )
+else
+    QEMU_ARGS+=("-m" "512")
 fi
 
 if [[ -e /dev/kvm && -r /dev/kvm && -w /dev/kvm ]]; then

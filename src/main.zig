@@ -47,12 +47,12 @@ export fn bspEarlyInit(boot_magic: u32, boot_params: u32) align(16) callconv(.c)
     if (param.params.isNetworkEnabled()) {
         virtio_net.init();
     }
+    vfs.init();
 
     mem.init2();
     if (param.params.isNetworkEnabled()) {
         tcpip.init(param.params.addr.?, param.params.subnetmask.?, param.params.gateway.?, &virtio_net.virtio_net.mac_addr);
     }
-    vfs.init();
 
     const root_dir = vfs.makeRootDir();
     const root_fd = stream.fd_table.set(stream.Stream{ .dir = root_dir }) catch {

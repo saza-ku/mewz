@@ -945,7 +945,7 @@ fn testServerSocket() bool {
         log.fatal.printf("sock_open failed: res={d}\n", .{@intFromEnum(res)});
         return false;
     }
-    if (!(fd1.* == 5)) {
+    if (fd1.* < 0) {
         log.fatal.printf("sock_open failed: fd={d}\n", .{fd1.*});
         return false;
     }

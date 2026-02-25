@@ -10,7 +10,7 @@ const RESPONSE_BUF_SIZE = 65536;
 
 pub var virtio_fs: ?*VirtioFs = null;
 
-var response_ready: bool = false;
+
 
 const VirtioFsDeviceConfig = extern struct {
     tag: [36]u8,
@@ -78,30 +78,29 @@ const VirtioFs = struct {
             },
         };
 
-        response_ready = false;
-        self.requestq().enqueue(chain[0..2]);
-        self.virtio.transport.notifyQueue(self.requestq());
+        const rq = self.requestq();
+        rq.enqueue(chain[0..2]);
+        self.virtio.transport.notifyQueue(rq);
 
-        // Poll for completion
+        // Poll for completion by checking used ring directly
         var timeout: u32 = 0;
-        while (!response_ready and timeout < 10_000_000) : (timeout += 1) {
-            if (self.requestq().used.idx().* != self.requestq().last_used_idx) {
-                response_ready = true;
-                break;
-            }
+        while (rq.used.idx().* == rq.last_used_idx and timeout < 100_000_000) : (timeout += 1) {
             asm volatile ("pause");
         }
 
-        if (!response_ready) {
-            log.fatal.print("virtio-fs: request timed out\n");
+        if (rq.used.idx().* == rq.last_used_idx) {
+            log.fatal.printf("virtio-fs: request timed out (avail={d} used={d} last_used={d})\n", .{ rq.avail.idx().*, rq.used.idx().*, rq.last_used_idx });
             return null;
         }
 
-        _ = self.requestq().popUsed(null) catch return null;
+        _ = rq.popUsed(null) catch {
+            log.fatal.print("virtio-fs: popUsed failed\n");
+            return null;
+        };
 
         const out_header = @as(*fuse.OutHeader, @ptrCast(@alignCast(self.response_buf.ptr)));
         if (out_header.err != 0) {
-            log.debug.printf("virtio-fs: FUSE error: {d}\n", .{out_header.err});
+            log.info.printf("virtio-fs: FUSE error: {d}\n", .{out_header.err});
             return null;
         }
 
@@ -305,8 +304,7 @@ const VirtioFs = struct {
     fn handleIrq(frame: *interrupt.InterruptFrame) void {
         _ = frame;
         const fs_dev = virtio_fs orelse return;
-        _ = fs_dev.virtio.transport.getIsr();
-        response_ready = true;
+        _ = fs_dev.virtio.transport.getIsr() orelse return;
     }
 };
 

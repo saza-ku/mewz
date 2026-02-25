@@ -29,6 +29,7 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 cd $REPO_ROOT
 
 mkdir -p build/test
+
 (stty -echo; sleep $TELNET_SLEEP; (sleep $TELNET_ECHO_SLEEP; echo q) | telnet localhost 1234) &
 (sleep $CURL_SLEEP; curl localhost:1234) &
 ./scripts/run-qemu.sh "${RUN_QEMU_ARGS[@]}" | tee build/test/output.txt

@@ -18,7 +18,7 @@ pub const Opcode = enum(u32) {
 
 pub const FUSE_ROOT_ID: u64 = 1;
 
-pub const InHeader = packed struct {
+pub const InHeader = extern struct {
     len: u32,
     opcode: u32,
     unique: u64,
@@ -29,13 +29,13 @@ pub const InHeader = packed struct {
     padding: u32,
 };
 
-pub const OutHeader = packed struct {
+pub const OutHeader = extern struct {
     len: u32,
     err: i32,
     unique: u64,
 };
 
-pub const InitIn = packed struct {
+pub const InitIn = extern struct {
     major: u32,
     minor: u32,
     max_readahead: u32,
@@ -57,7 +57,7 @@ pub const InitOut = extern struct {
     unused: [7]u32,
 };
 
-pub const Attr = packed struct {
+pub const Attr = extern struct {
     ino: u64,
     size: u64,
     blocks: u64,
@@ -88,7 +88,7 @@ pub const S_IFMT: u32 = 0o170000;
 pub const S_IFDIR: u32 = 0o040000;
 pub const S_IFREG: u32 = 0o100000;
 
-pub const EntryOut = packed struct {
+pub const EntryOut = extern struct {
     nodeid: u64,
     generation: u64,
     entry_valid: u64,
@@ -98,31 +98,31 @@ pub const EntryOut = packed struct {
     attr: Attr,
 };
 
-pub const GetattrIn = packed struct {
+pub const GetattrIn = extern struct {
     getattr_flags: u32,
     dummy: u32,
     fh: u64,
 };
 
-pub const AttrOut = packed struct {
+pub const AttrOut = extern struct {
     attr_valid: u64,
     attr_valid_nsec: u32,
     dummy: u32,
     attr: Attr,
 };
 
-pub const OpenIn = packed struct {
+pub const OpenIn = extern struct {
     flags: u32,
     open_flags: u32,
 };
 
-pub const OpenOut = packed struct {
+pub const OpenOut = extern struct {
     fh: u64,
     open_flags: u32,
     padding: u32,
 };
 
-pub const ReadIn = packed struct {
+pub const ReadIn = extern struct {
     fh: u64,
     offset: u64,
     size: u32,
@@ -132,7 +132,7 @@ pub const ReadIn = packed struct {
     padding: u32,
 };
 
-pub const WriteIn = packed struct {
+pub const WriteIn = extern struct {
     fh: u64,
     offset: u64,
     size: u32,
@@ -142,25 +142,25 @@ pub const WriteIn = packed struct {
     padding: u32,
 };
 
-pub const WriteOut = packed struct {
+pub const WriteOut = extern struct {
     size: u32,
     padding: u32,
 };
 
-pub const ReleaseIn = packed struct {
+pub const ReleaseIn = extern struct {
     fh: u64,
     flags: u32,
     release_flags: u32,
     lock_owner: u64,
 };
 
-pub const ForgetIn = packed struct {
+pub const ForgetIn = extern struct {
     nlookup: u64,
 };
 
 pub const DirentSize = @sizeOf(Dirent);
 
-pub const Dirent = packed struct {
+pub const Dirent = extern struct {
     ino: u64,
     off: u64,
     namelen: u32,
@@ -170,7 +170,7 @@ pub const Dirent = packed struct {
 
 pub const DirentplusSize = @sizeOf(Direntplus);
 
-pub const Direntplus = packed struct {
+pub const Direntplus = extern struct {
     entry_out: EntryOut,
     dirent: Dirent,
 };

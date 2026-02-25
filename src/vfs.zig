@@ -114,17 +114,14 @@ pub const VfsDir = struct {
 fn openVirtioFile(parent_nodeid: u64, path: []const u8) ?VfsFile {
     const dev = virtio_fs_driver.virtio_fs orelse return null;
 
-    // Walk path components separated by '/'
     var current_nodeid = parent_nodeid;
     var remaining = path;
 
-    // Strip leading '/' if present
     if (remaining.len > 0 and remaining[0] == '/') {
         remaining = remaining[1..];
     }
 
     while (remaining.len > 0) {
-        // Find next path separator
         var sep_idx: usize = 0;
         while (sep_idx < remaining.len and remaining[sep_idx] != '/') : (sep_idx += 1) {}
 
