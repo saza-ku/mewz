@@ -84,7 +84,7 @@ pub const Stream = union(enum) {
 
     const Self = @This();
 
-    pub const Error = error{FdFull} || Socket.Error;
+    pub const Error = error{ FdFull, ReadOnly } || Socket.Error;
 
     pub fn read(self: *Self, buffer: []u8) Error!usize {
         return switch (self.*) {
@@ -99,7 +99,7 @@ pub const Stream = union(enum) {
         return switch (self.*) {
             Self.uart => uart.write(buffer),
             Self.socket => |*sock| sock.send(buffer),
-            Self.opened_file => @panic("write on opened_file unimplemented"),
+            Self.opened_file => |*f| f.write(buffer),
             Self.dir => @panic("write on dir unimplemented"),
         };
     }
@@ -119,7 +119,7 @@ pub const Stream = union(enum) {
         return switch (self.*) {
             Self.uart => 0,
             Self.socket => 0,
-            Self.opened_file => 0,
+            Self.opened_file => |*f| f.flags(),
             Self.dir => 0,
         };
     }
@@ -130,7 +130,7 @@ pub const Stream = union(enum) {
                 log.warn.printf("set flags on uart unimplemented\n", .{});
             },
             Self.socket => |*sock| sock.*.flags |= f,
-            Self.opened_file => @panic("set flags on opened_file unimplemented"),
+            Self.opened_file => |*file| file.setFlags(f),
             Self.dir => @panic("set flags on dir unimplemented"),
         }
     }
@@ -148,7 +148,7 @@ pub const Stream = union(enum) {
         return switch (self.*) {
             Self.uart => 1,
             Self.socket => |*sock| sock.bytesCanWrite(),
-            Self.opened_file => 0,
+            Self.opened_file => |*f| f.bytesCanWrite(),
             Self.dir => 0,
         };
     }

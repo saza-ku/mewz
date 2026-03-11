@@ -183,7 +183,7 @@ const VirtioFs = struct {
         return attr_out.*;
     }
 
-    pub fn fuseOpen(self: *Self, nodeid: u64, is_dir: bool) ?fuse.OpenOut {
+    pub fn fuseOpen(self: *Self, nodeid: u64, is_dir: bool, open_flags: u32) ?fuse.OpenOut {
         const req_len = @sizeOf(fuse.InHeader) + @sizeOf(fuse.OpenIn);
         const resp_len = @sizeOf(fuse.OutHeader) + @sizeOf(fuse.OpenOut);
 
@@ -199,7 +199,7 @@ const VirtioFs = struct {
 
         const open_in = @as(*fuse.OpenIn, @ptrCast(@alignCast(self.request_buf[@sizeOf(fuse.InHeader)..].ptr)));
         open_in.* = fuse.OpenIn{
-            .flags = 0, // O_RDONLY
+            .flags = if (is_dir) 0 else open_flags,
             .open_flags = 0,
         };
 
@@ -243,6 +243,46 @@ const VirtioFs = struct {
         const copy_len = @min(data_len, out_buf.len);
         @memcpy(out_buf[0..copy_len], response[@sizeOf(fuse.OutHeader)..][0..copy_len]);
         return copy_len;
+    }
+
+    pub fn fuseWrite(self: *Self, nodeid: u64, fh: u64, offset: u64, data: []const u8) ?usize {
+        if (data.len == 0) return 0;
+
+        const req_base_len = @sizeOf(fuse.InHeader) + @sizeOf(fuse.WriteIn);
+        const max_data = REQUEST_BUF_SIZE - req_base_len;
+        if (max_data == 0) return null;
+
+        const write_size: usize = @min(data.len, max_data);
+        const req_len = req_base_len + write_size;
+        const resp_len = @sizeOf(fuse.OutHeader) + @sizeOf(fuse.WriteOut);
+
+        fuse.fillInHeader(
+            self.request_buf[0..@sizeOf(fuse.InHeader)],
+            @as(u32, @intCast(req_len)),
+            fuse.Opcode.FUSE_WRITE,
+            self.nextUnique(),
+            nodeid,
+        );
+
+        const write_in = @as(*fuse.WriteIn, @ptrCast(@alignCast(self.request_buf[@sizeOf(fuse.InHeader)..].ptr)));
+        write_in.* = fuse.WriteIn{
+            .fh = fh,
+            .offset = offset,
+            .size = @as(u32, @intCast(write_size)),
+            .write_flags = 0,
+            .lock_owner = 0,
+            .flags = 0,
+            .padding = 0,
+        };
+
+        const write_data_offset = @sizeOf(fuse.InHeader) + @sizeOf(fuse.WriteIn);
+        @memcpy(self.request_buf[write_data_offset .. write_data_offset + write_size], data[0..write_size]);
+
+        const response = self.sendRequest(req_len, resp_len) orelse return null;
+        if (response.len < @sizeOf(fuse.OutHeader) + @sizeOf(fuse.WriteOut)) return null;
+
+        const write_out = @as(*const fuse.WriteOut, @ptrCast(@alignCast(response[@sizeOf(fuse.OutHeader)..].ptr)));
+        return @as(usize, @intCast(write_out.size));
     }
 
     pub fn fuseRelease(self: *Self, nodeid: u64, fh: u64, is_dir: bool) void {
