@@ -57,11 +57,7 @@ fi
 
 if [[ -n "$VIRTIOFS_DIR" ]]; then
     VIRTIOFS_SOCK="/tmp/mewz-virtiofsd-$$"
-
-    VIRTIOFSD="virtiofsd"
-    if ! command -v virtiofsd &>/dev/null; then
-        VIRTIOFSD="/usr/lib/qemu/virtiofsd"
-    fi
+    VIRTIOFSD="/usr/lib/qemu/virtiofsd"
 
     VIRTIOFS_DIR_ABS="$(cd "$VIRTIOFS_DIR" && pwd)"
     sudo "$VIRTIOFSD" --socket-path="$VIRTIOFS_SOCK" -o source="$VIRTIOFS_DIR_ABS" -o sandbox=chroot &
