@@ -285,6 +285,38 @@ const VirtioFs = struct {
         return @as(usize, @intCast(write_out.size));
     }
 
+    pub fn fuseCreate(self: *Self, parent_nodeid: u64, name: []const u8, flags: u32, mode: u32) ?struct { entry: fuse.EntryOut, open: fuse.OpenOut } {
+        const req_len = @sizeOf(fuse.InHeader) + @sizeOf(fuse.CreateIn) + name.len + 1;
+        const resp_len = @sizeOf(fuse.OutHeader) + @sizeOf(fuse.EntryOut) + @sizeOf(fuse.OpenOut);
+
+        fuse.fillInHeader(
+            self.request_buf[0..@sizeOf(fuse.InHeader)],
+            @as(u32, @intCast(req_len)),
+            fuse.Opcode.FUSE_CREATE,
+            self.nextUnique(),
+            parent_nodeid,
+        );
+
+        const create_in = @as(*fuse.CreateIn, @ptrCast(@alignCast(self.request_buf[@sizeOf(fuse.InHeader)..].ptr)));
+        create_in.* = fuse.CreateIn{
+            .flags = flags,
+            .mode = mode,
+            .umask = 0o022,
+            .open_flags = 0,
+        };
+
+        const name_offset = @sizeOf(fuse.InHeader) + @sizeOf(fuse.CreateIn);
+        @memcpy(self.request_buf[name_offset..][0..name.len], name);
+        self.request_buf[name_offset + name.len] = 0;
+
+        const response = self.sendRequest(req_len, resp_len) orelse return null;
+        if (response.len < @sizeOf(fuse.OutHeader) + @sizeOf(fuse.EntryOut) + @sizeOf(fuse.OpenOut)) return null;
+
+        const entry = @as(*const fuse.EntryOut, @ptrCast(@alignCast(response[@sizeOf(fuse.OutHeader)..].ptr)));
+        const open_out = @as(*const fuse.OpenOut, @ptrCast(@alignCast(response[@sizeOf(fuse.OutHeader) + @sizeOf(fuse.EntryOut) ..].ptr)));
+        return .{ .entry = entry.*, .open = open_out.* };
+    }
+
     pub fn fuseRelease(self: *Self, nodeid: u64, fh: u64, is_dir: bool) void {
         const req_len = @sizeOf(fuse.InHeader) + @sizeOf(fuse.ReleaseIn);
         const resp_len = @sizeOf(fuse.OutHeader);

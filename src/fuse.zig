@@ -13,6 +13,7 @@ pub const Opcode = enum(u32) {
     FUSE_OPENDIR = 27,
     FUSE_READDIR = 28,
     FUSE_RELEASEDIR = 29,
+    FUSE_CREATE = 35,
     FUSE_READDIRPLUS = 44,
 };
 
@@ -145,6 +146,13 @@ pub const WriteIn = extern struct {
 pub const WriteOut = extern struct {
     size: u32,
     padding: u32,
+};
+
+pub const CreateIn = extern struct {
+    flags: u32,
+    mode: u32,
+    umask: u32,
+    open_flags: u32,
 };
 
 pub const ReleaseIn = extern struct {

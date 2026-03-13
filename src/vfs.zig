@@ -5,6 +5,7 @@ const virtio_fs_driver = @import("drivers/virtio/fs.zig");
 
 const O_WRONLY: u32 = 0x0001;
 const O_RDWR: u32 = 0x0002;
+const O_CREAT: u32 = 0x0040;
 const O_TRUNC: u32 = 0x0200;
 const O_APPEND: u32 = 0x0400;
 
@@ -15,6 +16,7 @@ pub const OpenOptions = struct {
     write: bool = false,
     append: bool = false,
     truncate: bool = false,
+    create: bool = false,
 };
 
 pub const VfsFile = struct {
@@ -235,27 +237,45 @@ fn openVirtioFile(parent_nodeid: u64, path: []const u8, options: OpenOptions) ?V
 
         const is_last = (sep_idx >= remaining.len) or (sep_idx == remaining.len - 1);
 
-        const entry = dev.fuseLookup(current_nodeid, component) orelse return null;
-        const attr = entry.attr;
+        const maybe_entry = dev.fuseLookup(current_nodeid, component);
 
         if (is_last) {
-            if (!attr.isRegular()) return null;
+            if (maybe_entry) |entry| {
+                const attr = entry.attr;
+                if (!attr.isRegular()) return null;
 
-            const open_flags = toLinuxOpenFlags(options);
-            const open_out = dev.fuseOpen(entry.nodeid, false, open_flags) orelse return null;
-            return VfsFile{
-                .backend = .{ .virtio_file = .{
-                    .nodeid = entry.nodeid,
-                    .fh = open_out.fh,
-                    .file_size = attr.size,
-                } },
-                .pos = if (options.append) attr.size else 0,
-                .can_write = options.write,
-                .fd_flags = if (options.append) WASI_FDFLAG_APPEND else 0,
-            };
+                const open_flags = toLinuxOpenFlags(options);
+                const open_out = dev.fuseOpen(entry.nodeid, false, open_flags) orelse return null;
+                return VfsFile{
+                    .backend = .{ .virtio_file = .{
+                        .nodeid = entry.nodeid,
+                        .fh = open_out.fh,
+                        .file_size = attr.size,
+                    } },
+                    .pos = if (options.append) attr.size else 0,
+                    .can_write = options.write,
+                    .fd_flags = if (options.append) WASI_FDFLAG_APPEND else 0,
+                };
+            } else if (options.create) {
+                const linux_flags = toLinuxOpenFlags(options) | O_CREAT | O_TRUNC;
+                const result = dev.fuseCreate(current_nodeid, component, linux_flags, 0o644) orelse return null;
+                return VfsFile{
+                    .backend = .{ .virtio_file = .{
+                        .nodeid = result.entry.nodeid,
+                        .fh = result.open.fh,
+                        .file_size = 0,
+                    } },
+                    .pos = 0,
+                    .can_write = options.write,
+                    .fd_flags = if (options.append) WASI_FDFLAG_APPEND else 0,
+                };
+            } else {
+                return null;
+            }
         }
 
-        if (!attr.isDir()) return null;
+        const entry = maybe_entry orelse return null;
+        if (!entry.attr.isDir()) return null;
         current_nodeid = entry.nodeid;
         remaining = remaining[sep_idx + 1 ..];
     }

@@ -367,6 +367,7 @@ pub export fn path_open(fd: i32, dirflags: i32, path_addr: i32, path_length: i32
         .write = wants_write,
         .append = append,
         .truncate = truncate,
+        .create = create,
     };
 
     // open file through VFS
